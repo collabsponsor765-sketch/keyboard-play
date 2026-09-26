@@ -3,29 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gun Keyboard</title>
+    <title>Neon Target Practice</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="screen-flash"></div>
-    <div class="container">
-        <h1>Gun Keyboard</h1>
-        <div class="controls">
-            <label for="gun-select">Select Weapon:</label>
+    <div id="score-board">Score: <span id="score">0</span></div>
+    
+    <div id="ui-panel">
+        <div class="control-group">
+            <label>Gun:</label>
             <select id="gun-select">
-                <option value="shotgun">Shotgun</option>
-                <option value="pistol">Pistol</option>
-                <option value="machinegun">Machine Gun</option>
                 <option value="laser">Laser Blaster</option>
-                <option value="sniper">Sniper Rifle</option>
-                <option value="ak47">AK-47</option>
-                <option value="deserteagle">Desert Eagle</option>
+                <option value="pistol">Standard Pistol</option>
+                <option value="shotgun">Heavy Shotgun</option>
+                <option value="machinegun">Machine Gun</option>
             </select>
         </div>
-        <p>Press any key to fire...</p>
-        <div class="visualizer" id="visualizer"></div>
+        <div class="control-group">
+            <label>Distance:</label>
+            <select id="distance-select">
+                <option value="close">Close (10m)</option>
+                <option value="medium">Medium (30m)</option>
+                <option value="far">Far (50m)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Difficulty:</label>
+            <select id="difficulty-select">
+                <option value="easy">Easy (Static)</option>
+                <option value="normal">Normal (Moving)</option>
+                <option value="hard">Hard (Fast)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Target:</label>
+            <select id="target-select">
+                <option value="neon">Neon Rings</option>
+                <option value="wood">Wooden Board</option>
+                <option value="metal">Metal Plate</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>World:</label>
+            <select id="bg-select">
+                <option value="grid">Cyber Grid</option>
+                <option value="space">Deep Space</option>
+                <option value="matrix">Digital Matrix</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Accessories:</label>
+            <div>
+                <input type="checkbox" id="toggle-laser"> <label for="toggle-laser">Laser</label>
+                <input type="checkbox" id="toggle-scope"> <label for="toggle-scope">Scope</label>
+            </div>
+        </div>
     </div>
+
+    <div id="environment">
+        <div id="bg-layer" class="bg-grid"></div>
+    </div>
+    
+    <div id="target-container">
+        <div id="target" class="neon">
+            <div class="ring outer"></div>
+            <div class="ring middle"></div>
+            <div class="ring inner"></div>
+            <div class="bullseye"></div>
+        </div>
+    </div>
+
+    <div id="damage-container"></div>
+    <div id="scope-overlay"></div>
+
+    <div id="gun-pivot">
+        <div id="laser-beam"></div>
+        <div id="gun-body">
+            <div id="barrel"></div>
+            <div id="muzzle-flash"></div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

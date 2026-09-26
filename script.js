@@ -1,292 +1,302 @@
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-const gunSelect = document.getElementById('gun-select');
+const gunPivot = document.getElementById('gun-pivot');
+const damageContainer = document.getElementById('damage-container');
+const scoreElement = document.getElementById('score');
+const targetContainer = document.getElementById('target-container');
+const targetElement = document.getElementById('target');
+const gunBody = document.getElementById('gun-body');
+const laserBeam = document.getElementById('laser-beam');
+const scopeOverlay = document.getElementById('scope-overlay');
+const bgLayer = document.getElementById('bg-layer');
 
-// Create a master compressor to make sounds much louder without clipping too horribly
-const masterCompressor = audioCtx.createDynamicsCompressor();
-masterCompressor.threshold.setValueAtTime(-24, audioCtx.currentTime);
-masterCompressor.knee.setValueAtTime(10, audioCtx.currentTime);
-masterCompressor.ratio.setValueAtTime(12, audioCtx.currentTime);
-masterCompressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
-masterCompressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+let totalScore = 0;
+let currentGun = 'laser';
+let currentDistance = 1;
+let isScoped = false;
+let scopeZoom = 2; // Dynamic zoom multiplier
+let mouseX = window.innerWidth / 2;
+let mouseY = window.innerHeight / 2;
+let firingInterval = null;
 
-const masterGain = audioCtx.createGain();
-masterGain.gain.value = 5.0; // Pushing the volume up significantly
+// UI Event Listeners
+document.getElementById('gun-select').addEventListener('change', (e) => {
+    currentGun = e.target.value;
+    gunBody.className = '';
+    if (currentGun !== 'laser') gunBody.classList.add(currentGun);
+});
 
-masterGain.connect(masterCompressor);
-masterCompressor.connect(audioCtx.destination);
+document.getElementById('distance-select').addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val === 'close') currentDistance = 1;
+    if (val === 'medium') currentDistance = 0.6;
+    if (val === 'far') currentDistance = 0.3;
+    updateTargetScale();
+});
 
-// Helper to create noise buffers for explosions
-function createNoiseBuffer() {
-    const bufferSize = audioCtx.sampleRate * 1.0; 
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-    return buffer;
-}
-const noiseBuffer = createNoiseBuffer();
+document.getElementById('difficulty-select').addEventListener('change', (e) => {
+    const difficulty = e.target.value;
+    targetContainer.classList.remove('move-normal', 'move-hard');
+    if (difficulty === 'normal') targetContainer.classList.add('move-normal');
+    if (difficulty === 'hard') targetContainer.classList.add('move-hard');
+});
 
-function playSound(keyCode, gunType) {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+document.getElementById('target-select').addEventListener('change', (e) => {
+    targetElement.className = e.target.value;
+});
+
+document.getElementById('bg-select').addEventListener('change', (e) => {
+    bgLayer.className = `bg-${e.target.value}`;
+});
+
+document.getElementById('toggle-laser').addEventListener('change', (e) => {
+    laserBeam.classList.toggle('active', e.target.checked);
+    updateAim();
+});
+
+document.getElementById('toggle-scope').addEventListener('change', (e) => {
+    isScoped = e.target.checked;
+    scopeOverlay.classList.toggle('active', isScoped);
+    updateTargetScale();
+});
+
+// Mouse Wheel Scope Zooming
+document.addEventListener('wheel', (e) => {
+    if (!isScoped) return;
     
-    const time = audioCtx.currentTime;
-    const pitchVariation = (keyCode % 50) / 100 + 0.6;
+    // Prevent page scrolling
+    if(e.cancelable) e.preventDefault();
+    
+    if (e.deltaY < 0) {
+        scopeZoom = Math.min(scopeZoom + 0.5, 5); // Zoom in, max 5x
+    } else {
+        scopeZoom = Math.max(scopeZoom - 0.5, 1); // Zoom out, min 1x
+    }
+    updateTargetScale();
+}, { passive: false });
 
-    if (gunType === 'shotgun') {
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        
-        const noiseFilter = audioCtx.createBiquadFilter();
-        noiseFilter.type = 'lowpass';
-        noiseFilter.frequency.setValueAtTime(3000 * pitchVariation, time);
-        noiseFilter.frequency.exponentialRampToValueAtTime(100, time + 0.3);
-        
-        const noiseEnv = audioCtx.createGain();
-        noiseEnv.gain.setValueAtTime(4, time);
-        noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
-        
-        noise.connect(noiseFilter).connect(noiseEnv).connect(masterGain);
-        
-        const osc = audioCtx.createOscillator();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(100 * pitchVariation, time);
-        osc.frequency.exponentialRampToValueAtTime(20, time + 0.2);
-        
-        const oscEnv = audioCtx.createGain();
-        oscEnv.gain.setValueAtTime(6, time);
-        oscEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
-        
-        osc.connect(oscEnv).connect(masterGain);
-        
-        noise.start(time); osc.start(time);
-        noise.stop(time + 0.6); osc.stop(time + 0.6);
-        
-        createVisualFlash('rgba(255,100,0,0.9)');
-        screenFlash('rgba(255,0,0,0.5)');
-        shakeScreen(15);
-        createBloodStain();
-        
-    } else if (gunType === 'pistol') {
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        
-        const noiseFilter = audioCtx.createBiquadFilter();
-        noiseFilter.type = 'bandpass';
-        noiseFilter.frequency.setValueAtTime(5000 * pitchVariation, time);
-        noiseFilter.frequency.exponentialRampToValueAtTime(500, time + 0.1);
-        
-        const noiseEnv = audioCtx.createGain();
-        noiseEnv.gain.setValueAtTime(5, time);
-        noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
-        
-        noise.connect(noiseFilter).connect(noiseEnv).connect(masterGain);
-        
-        const osc = audioCtx.createOscillator();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(400 * pitchVariation, time);
-        osc.frequency.exponentialRampToValueAtTime(50, time + 0.05);
-        
-        const oscEnv = audioCtx.createGain();
-        oscEnv.gain.setValueAtTime(3, time);
-        oscEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
-        
-        osc.connect(oscEnv).connect(masterGain);
-        
-        noise.start(time); osc.start(time);
-        noise.stop(time + 0.25); osc.stop(time + 0.25);
-        
-        createVisualFlash('rgba(255,255,200,0.8)');
-        screenFlash('rgba(255,255,255,0.3)');
-        shakeScreen(6);
-        if(Math.random() > 0.5) createBloodStain();
+function updateTargetScale() {
+    // If scoped, dynamically magnify based on scopeZoom
+    const finalScale = isScoped ? currentDistance * scopeZoom : currentDistance;
+    targetContainer.style.transform = `translate(-50%, -50%) scale(${finalScale})`;
+}
 
-    } else if (gunType === 'machinegun' || gunType === 'ak47') {
-        const isAK = gunType === 'ak47';
-        
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        
-        const noiseFilter = audioCtx.createBiquadFilter();
-        noiseFilter.type = 'lowpass';
-        noiseFilter.frequency.setValueAtTime((isAK ? 4000 : 3500) * pitchVariation, time);
-        noiseFilter.frequency.exponentialRampToValueAtTime(200, time + 0.15);
-        
-        const noiseEnv = audioCtx.createGain();
-        noiseEnv.gain.setValueAtTime(isAK ? 6 : 4, time);
-        noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
-        
-        noise.connect(noiseFilter).connect(noiseEnv).connect(masterGain);
+// Aiming Logic (Desktop & Mobile)
+function updateAim() {
+    const pivotX = window.innerWidth / 2;
+    const pivotY = window.innerHeight;
+    
+    const angleRad = Math.atan2(mouseY - pivotY, mouseX - pivotX);
+    const finalAngle = (angleRad * (180 / Math.PI)) + 90;
+    
+    gunPivot.style.transform = `translateX(-50%) rotate(${finalAngle}deg)`;
 
-        const osc = audioCtx.createOscillator();
-        osc.type = isAK ? 'square' : 'sawtooth';
-        osc.frequency.setValueAtTime((isAK ? 200 : 250) * pitchVariation, time);
-        osc.frequency.exponentialRampToValueAtTime(50, time + 0.05);
-        
-        const env = audioCtx.createGain();
-        env.gain.setValueAtTime(isAK ? 5 : 3, time);
-        env.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
-        
-        osc.connect(env).connect(masterGain);
-        
-        noise.start(time); osc.start(time);
-        noise.stop(time + 0.25); osc.stop(time + 0.25);
-        
-        createVisualFlash('rgba(255,150,0,0.8)');
-        shakeScreen(isAK ? 8 : 5);
-        if(Math.random() > (isAK ? 0.5 : 0.7)) createBloodStain();
-
-    } else if (gunType === 'sniper') {
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        
-        const noiseFilter = audioCtx.createBiquadFilter();
-        noiseFilter.type = 'lowpass';
-        noiseFilter.frequency.setValueAtTime(6000 * pitchVariation, time);
-        noiseFilter.frequency.exponentialRampToValueAtTime(50, time + 0.5);
-        
-        const noiseEnv = audioCtx.createGain();
-        noiseEnv.gain.setValueAtTime(8, time);
-        noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
-        
-        noise.connect(noiseFilter).connect(noiseEnv).connect(masterGain);
-        
-        // Deep thud
-        const osc = audioCtx.createOscillator();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(150 * pitchVariation, time);
-        osc.frequency.exponentialRampToValueAtTime(10, time + 0.4);
-        
-        const oscEnv = audioCtx.createGain();
-        oscEnv.gain.setValueAtTime(10, time); // Huge bass punch
-        oscEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.6);
-        
-        osc.connect(oscEnv).connect(masterGain);
-        
-        noise.start(time); osc.start(time);
-        noise.stop(time + 1.0); osc.stop(time + 1.0);
-        
-        createVisualFlash('rgba(255,200,50,1)');
-        screenFlash('rgba(200,0,0,0.7)');
-        shakeScreen(20);
-        createBloodStain();
-        createBloodStain(); // Double blood
-        
-    } else if (gunType === 'deserteagle') {
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        
-        const noiseFilter = audioCtx.createBiquadFilter();
-        noiseFilter.type = 'bandpass';
-        noiseFilter.frequency.setValueAtTime(3000 * pitchVariation, time);
-        noiseFilter.frequency.exponentialRampToValueAtTime(200, time + 0.3);
-        
-        const noiseEnv = audioCtx.createGain();
-        noiseEnv.gain.setValueAtTime(7, time);
-        noiseEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
-        
-        noise.connect(noiseFilter).connect(noiseEnv).connect(masterGain);
-        
-        const osc = audioCtx.createOscillator();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(200 * pitchVariation, time);
-        osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
-        
-        const oscEnv = audioCtx.createGain();
-        oscEnv.gain.setValueAtTime(6, time);
-        oscEnv.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
-        
-        osc.connect(oscEnv).connect(masterGain);
-        
-        noise.start(time); osc.start(time);
-        noise.stop(time + 0.5); osc.stop(time + 0.5);
-        
-        createVisualFlash('rgba(255,255,150,0.9)');
-        screenFlash('rgba(150,0,0,0.4)');
-        shakeScreen(12);
-        createBloodStain();
-
-    } else if (gunType === 'laser') {
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1500 * pitchVariation, time);
-        osc.frequency.exponentialRampToValueAtTime(200, time + 0.2);
-        
-        const env = audioCtx.createGain();
-        env.gain.setValueAtTime(2, time);
-        env.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
-        
-        osc.connect(env).connect(masterGain);
-        osc.start(time);
-        osc.stop(time + 0.3);
-        
-        createVisualFlash('rgba(0,255,255,0.8)');
-        screenFlash('rgba(0,255,255,0.3)');
+    // Adjust Laser height for 3D depth perception (Z-axis pointer)
+    if (laserBeam.classList.contains('active')) {
+        // Distance from barrel to the mouse pointer
+        const dist = Math.hypot(mouseX - pivotX, mouseY - (pivotY - 30));
+        laserBeam.style.height = `${dist}px`;
     }
 }
 
-function createVisualFlash(color) {
-    const visualizer = document.getElementById('visualizer');
-    const flash = document.createElement('div');
-    flash.classList.add('flash');
-    flash.style.background = `radial-gradient(circle, rgba(255,255,255,1) 0%, ${color} 20%, rgba(255,0,0,0) 70%)`;
-    
-    const x = 50 + (Math.random() * 40 - 20);
-    const y = 50 + (Math.random() * 40 - 20);
-    flash.style.left = `${x}%`;
-    flash.style.top = `${y}%`;
-    
-    const size = Math.random() * 200 + 150;
-    flash.style.width = `${size}px`;
-    flash.style.height = `${size}px`;
-    
-    visualizer.appendChild(flash);
-    setTimeout(() => flash.remove(), 300);
-}
-
-function screenFlash(color) {
-    const flashEl = document.getElementById('screen-flash');
-    flashEl.style.transition = 'none';
-    flashEl.style.backgroundColor = color;
-    
-    setTimeout(() => {
-        flashEl.style.transition = 'background-color 0.1s ease-out';
-        flashEl.style.backgroundColor = 'transparent';
-    }, 20);
-}
-
-function shakeScreen(amount) {
-    const container = document.querySelector('.container');
-    const x = Math.random() * amount * 2 - amount;
-    const y = Math.random() * amount * 2 - amount;
-    container.style.transform = `translate(${x}px, ${y}px)`;
-    setTimeout(() => {
-        container.style.transform = 'translate(0, 0)';
-    }, 50);
-}
-
-function createBloodStain() {
-    const stain = document.createElement('div');
-    stain.classList.add('blood-stain');
-    
-    const size = Math.random() * 80 + 30;
-    stain.style.width = `${size}px`;
-    stain.style.height = `${size}px`;
-    
-    const x = Math.random() * 100;
-    const y = Math.random() * 100;
-    stain.style.left = `${x}vw`;
-    stain.style.top = `${y}vh`;
-    
-    const rot = Math.random() * 360;
-    stain.style.transform = `translate(-50%, -50%) rotate(${rot}deg) scaleY(${Math.random()*0.5 + 0.8})`;
-
-    document.body.appendChild(stain);
-    
-    setTimeout(() => stain.remove(), 10000);
-}
-
-document.addEventListener('keydown', (e) => {
-    const isAutoFire = gunSelect.value === 'machinegun' || gunSelect.value === 'ak47';
-    if (e.repeat && !isAutoFire) return;
-    
-    playSound(e.keyCode, gunSelect.value);
+document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    updateAim();
 });
+
+document.addEventListener('touchmove', (e) => {
+    mouseX = e.touches[0].clientX;
+    mouseY = e.touches[0].clientY;
+    updateAim();
+}, { passive: true });
+
+
+// Firing Logic (Desktop & Mobile)
+function fireHandler(e) {
+    if (e.target && e.target.closest && e.target.closest('#ui-panel')) return;
+    if (e.cancelable) e.preventDefault();
+
+    if (currentGun === 'machinegun') {
+        fireWeapon(); 
+        if(firingInterval) clearInterval(firingInterval);
+        firingInterval = setInterval(fireWeapon, 100);
+    } else {
+        fireWeapon();
+    }
+}
+
+document.addEventListener('mousedown', fireHandler);
+document.addEventListener('touchstart', fireHandler, { passive: false });
+
+function stopFiring() {
+    if (firingInterval) clearInterval(firingInterval);
+}
+document.addEventListener('mouseup', stopFiring);
+document.addEventListener('mouseleave', stopFiring);
+document.addEventListener('touchend', stopFiring);
+document.addEventListener('touchcancel', stopFiring);
+
+
+function fireWeapon() {
+    // Visuals
+    document.body.classList.add('firing');
+    setTimeout(() => { document.body.classList.remove('firing'); }, 50);
+
+    if (currentGun === 'shotgun') {
+        shakeScreen(15);
+        triggerVibration([100, 50, 100]); // heavy rumble
+        for (let i = 0; i < 5; i++) {
+            const spreadX = (Math.random() - 0.5) * 80 * currentDistance;
+            const spreadY = (Math.random() - 0.5) * 80 * currentDistance;
+            const hitX = mouseX + spreadX;
+            const hitY = mouseY + spreadY;
+            const points = calculateScore(hitX, hitY);
+            createBulletHole(hitX, hitY, points > 0);
+        }
+    } else if (currentGun === 'machinegun') {
+        shakeScreen(4);
+        triggerVibration(40); // quick buzz
+        const spreadX = (Math.random() - 0.5) * 30 * currentDistance;
+        const spreadY = (Math.random() - 0.5) * 30 * currentDistance;
+        const hitX = mouseX + spreadX;
+        const hitY = mouseY + spreadY;
+        const points = calculateScore(hitX, hitY);
+        createBulletHole(hitX, hitY, points > 0);
+    } else {
+        shakeScreen(currentGun === 'laser' ? 8 : 4);
+        triggerVibration(70); // solid pop
+        const points = calculateScore(mouseX, mouseY);
+        createBulletHole(mouseX, mouseY, points > 0);
+    }
+    
+    playShootSound();
+}
+
+function triggerVibration(pattern) {
+    if (navigator.vibrate) {
+        navigator.vibrate(pattern);
+    }
+}
+
+function calculateScore(x, y) {
+    const rect = targetElement.getBoundingClientRect();
+    const targetCenterX = rect.left + rect.width / 2;
+    const targetCenterY = rect.top + rect.height / 2;
+
+    const dx = x - targetCenterX;
+    const dy = y - targetCenterY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    let points = 0;
+    
+    const scaleFactor = isScoped ? currentDistance * scopeZoom : currentDistance;
+
+    if (distance <= 15 * scaleFactor) { 
+        points = 100;
+    } else if (distance <= 50 * scaleFactor) { 
+        points = 50;
+    } else if (distance <= 100 * scaleFactor) { 
+        points = 25;
+    } else if (distance <= 150 * scaleFactor) { 
+        points = 10;
+    }
+
+    if (points > 0) {
+        totalScore += points;
+        scoreElement.innerText = totalScore;
+        showScorePopup(x, y, points);
+    }
+    return points;
+}
+
+function showScorePopup(x, y, points) {
+    const popup = document.createElement('div');
+    popup.className = 'score-popup';
+    popup.innerText = `+${points}`;
+    popup.style.left = `${x}px`;
+    popup.style.top = `${y}px`;
+    
+    if(points === 100) popup.style.color = '#fff';
+    if(points === 50) popup.style.color = '#0ff';
+    if(points === 25) popup.style.color = '#f0f';
+
+    document.body.appendChild(popup);
+    setTimeout(() => { popup.remove(); }, 1000);
+}
+
+function createBulletHole(x, y, hitTarget) {
+    const hole = document.createElement('div');
+    hole.className = `bullet-hole ${currentGun}`;
+    const rot = Math.random() * 360;
+    
+    if (hitTarget) {
+        const rect = targetElement.getBoundingClientRect();
+        const targetCenterX = rect.left + rect.width / 2;
+        const targetCenterY = rect.top + rect.height / 2;
+        
+        const dx = x - targetCenterX;
+        const dy = y - targetCenterY;
+        const scaleFactor = isScoped ? currentDistance * scopeZoom : currentDistance;
+        
+        const unscaledDx = dx / scaleFactor;
+        const unscaledDy = dy / scaleFactor;
+        
+        hole.style.left = `${150 + unscaledDx}px`;
+        hole.style.top = `${150 + unscaledDy}px`;
+        hole.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+        
+        targetElement.appendChild(hole);
+    } else {
+        hole.style.left = `${x}px`;
+        hole.style.top = `${y}px`;
+        hole.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+        damageContainer.appendChild(hole);
+    }
+}
+
+function shakeScreen(intensity = 8) {
+    const x = (Math.random() - 0.5) * intensity;
+    const y = (Math.random() - 0.5) * intensity;
+    document.body.style.transform = `translate(${x}px, ${y}px)`;
+    setTimeout(() => { document.body.style.transform = 'translate(0, 0)'; }, 50);
+}
+
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function playShootSound() {
+    if (!audioCtx) audioCtx = new AudioContext();
+    
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    if (currentGun === 'laser') {
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    } else if (currentGun === 'pistol') {
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(0.7, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+    } else if (currentGun === 'shotgun') {
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(80, audioCtx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    } else if (currentGun === 'machinegun') {
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(120, audioCtx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.05);
+        gainNode.gain.setValueAtTime(0.6, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+    }
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.2);
+}

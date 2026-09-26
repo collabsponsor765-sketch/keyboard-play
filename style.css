@@ -1,110 +1,148 @@
-body {
-    margin: 0;
-    padding: 0;
-    background-color: #050505;
-    color: #fff;
-    font-family: 'Inter', sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    overflow: hidden;
-    position: relative;
+:root { --primary: #0ff; --secondary: #f0f; --bg: #050510; }
+body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background-color: var(--bg); overflow: hidden; font-family: 'Segoe UI', sans-serif; cursor: crosshair; user-select: none; touch-action: none; /* Prevent pinch zoom on mobile */ }
+
+/* Score */
+#score-board { position: absolute; top: 20px; left: 20px; font-size: 2.5rem; color: var(--primary); text-shadow: 0 0 15px var(--primary); font-weight: bold; z-index: 20; pointer-events: none; }
+.score-popup { position: absolute; color: #fff; font-weight: bold; font-size: 2rem; pointer-events: none; z-index: 30; text-shadow: 0 0 10px #000; animation: floatUp 1s ease-out forwards; }
+@keyframes floatUp { 0% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -100px) scale(1.5); opacity: 0; } }
+
+/* UI Panel */
+#ui-panel {
+    position: absolute; top: 20px; right: 20px;
+    background: rgba(0, 0, 0, 0.85); border: 1px solid var(--primary);
+    padding: 15px; border-radius: 8px; color: #fff;
+    z-index: 35; box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+    display: flex; flex-direction: column; gap: 8px; pointer-events: auto;
+}
+.control-group { display: flex; justify-content: space-between; align-items: center; gap: 15px; }
+select, input { background: #111; color: var(--primary); border: 1px solid var(--primary); padding: 4px; border-radius: 4px; outline: none; cursor: pointer; }
+
+/* Backgrounds */
+#environment { position: absolute; inset: 0; perspective: 1000px; z-index: 1; pointer-events: none; }
+#bg-layer { position: absolute; width: 200vw; height: 200vh; left: -50vw; top: -50vh; }
+.bg-grid { background-image: linear-gradient(rgba(0, 255, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 255, 0.15) 1px, transparent 1px); background-size: 50px 50px; transform: rotateX(60deg) translateY(100px); animation: gridMove 10s linear infinite; }
+@keyframes gridMove { 0% { background-position: 0 0; } 100% { background-position: 0 500px; } }
+.bg-space { background: #000 radial-gradient(white, rgba(255,255,255,.2) 1px, transparent 2px); background-size: 80px 80px; background-position: 0 0, 40px 40px; transform: none; animation: none; }
+.bg-matrix { background: #000 linear-gradient(rgba(0, 255, 0, 0.1) 2px, transparent 2px); background-size: 30px 30px; transform: none; animation: none; }
+
+/* Target */
+#target-container { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); width: 300px; height: 300px; z-index: 2; transition: transform 0.1s linear; }
+#target { position: relative; width: 100%; height: 100%; border-radius: 50%; display: flex; justify-content: center; align-items: center; }
+.ring { position: absolute; border-radius: 50%; }
+.outer { width: 100%; height: 100%; }
+.middle { width: 66%; height: 66%; }
+.inner { width: 33%; height: 33%; }
+.bullseye { width: 10%; height: 10%; border-radius: 50%; z-index: 3; }
+
+/* Target Themes */
+#target.neon { box-shadow: 0 0 50px rgba(255, 0, 255, 0.2); animation: pulseTarget 2s ease-in-out infinite alternate; }
+#target.neon .ring { border: 4px solid var(--secondary); box-shadow: 0 0 15px var(--secondary), inset 0 0 15px var(--secondary); }
+#target.neon .middle { border-color: var(--primary); box-shadow: 0 0 15px var(--primary), inset 0 0 15px var(--primary); }
+#target.neon .bullseye { background: #fff; box-shadow: 0 0 20px #fff, 0 0 40px var(--primary); }
+@keyframes pulseTarget { 0% { box-shadow: 0 0 40px rgba(255,0,255,0.3); } 100% { box-shadow: 0 0 80px rgba(255,0,255,0.6); } }
+
+#target.wood { box-shadow: 0 0 20px rgba(0,0,0,0.5); background: #8b5a2b; border: 4px solid #5c4033; }
+#target.wood .ring { border: 2px solid #3e2723; }
+#target.wood .outer { background: #8b5a2b; }
+#target.wood .middle { background: #a0522d; }
+#target.wood .inner { background: #cd853f; }
+#target.wood .bullseye { background: #3e2723; }
+
+#target.metal { box-shadow: 0 0 10px #000; background: #999; border: 4px solid #555; }
+#target.metal .ring { border: 2px solid #fff; box-shadow: inset 0 0 10px #555; }
+#target.metal .outer { background: #aaa; }
+#target.metal .middle { background: #ccc; }
+#target.metal .inner { background: #eee; }
+#target.metal .bullseye { background: #f00; box-shadow: 0 0 10px #f00; }
+
+/* Difficulty Movement */
+.move-normal { animation: moveTarget 3s ease-in-out infinite alternate; }
+.move-hard { animation: moveTarget 1.5s ease-in-out infinite alternate; }
+@keyframes moveTarget { 0% { left: 20%; } 100% { left: 80%; } }
+
+/* Damage */
+#damage-container { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.bullet-hole { position: absolute; width: 15px; height: 15px; background: #000; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 5px #000, 0 0 10px var(--primary), inset 0 0 5px rgba(255,255,255,0.8); z-index: 10; pointer-events: none; }
+.bullet-hole::after { content: ''; position: absolute; top: 50%; left: 50%; width: 35px; height: 35px; background: radial-gradient(circle, rgba(0,255,255,0.9) 0%, transparent 50%); transform: translate(-50%, -50%); mix-blend-mode: screen; }
+
+.bullet-hole.pistol, .bullet-hole.machinegun { box-shadow: inset 0 0 5px #000, 0 0 2px rgba(255,255,255,0.3); }
+.bullet-hole.pistol::after, .bullet-hole.machinegun::after { display: none; }
+.bullet-hole.shotgun { width: 8px; height: 8px; box-shadow: inset 0 0 2px #000; }
+.bullet-hole.shotgun::after { display: none; }
+
+/* Scope Overlay */
+#scope-overlay {
+    position: absolute; inset: 0; z-index: 15; pointer-events: none;
+    background: radial-gradient(circle at center, transparent 15%, rgba(0,0,0,0.98) 50%);
+    opacity: 0; transition: opacity 0.3s ease;
+}
+#scope-overlay.active { opacity: 1; }
+
+/* Gun Setup */
+#gun-pivot { position: absolute; bottom: 0; left: 50%; width: 60px; height: 250px; z-index: 20; transform-origin: bottom center; transform: translateX(-50%) rotate(0deg); pointer-events: none; }
+
+/* Laser Beam - Z Axis Pointer */
+#laser-beam {
+    position: absolute; bottom: 30px; left: 50%; width: 2px; height: 0px; /* Dynamic height */
+    background: linear-gradient(to top, rgba(255,0,85,0), #ff0055 20%, #ff0055);
+    box-shadow: 0 0 10px #ff0055, 0 0 20px #ff0055;
+    transform-origin: bottom center; transform: translateX(-50%);
+    opacity: 0; z-index: -1;
+}
+#laser-beam.active { opacity: 0.8; }
+/* Laser Dot at the end */
+#laser-beam::after {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%);
+    width: 8px; height: 8px; background: #ff0055; border-radius: 50%; box-shadow: 0 0 10px #ff0055, 0 0 20px #ff0055;
 }
 
-.container {
-    text-align: center;
-    z-index: 10;
+#gun-body {
+    position: absolute; bottom: -30px; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(to right, #111, #333 20%, #222 80%, #111);
+    border-radius: 10px 10px 0 0; box-shadow: inset 0 0 15px #000, 0 0 25px rgba(0,255,255,0.2);
+    border: 2px solid #444; border-bottom: none; transition: transform 0.05s;
+}
+#barrel {
+    position: absolute; top: -40px; left: 50%; transform: translateX(-50%);
+    width: 24px; height: 50px; background: linear-gradient(to right, #050505, #222, #050505);
+    border-radius: 4px 4px 0 0; border: 2px solid #555; border-bottom: none;
+}
+#muzzle-flash {
+    position: absolute; top: -150px; left: 50%; transform: translateX(-50%) scale(0);
+    width: 120px; height: 120px; background: radial-gradient(circle, #fff 0%, #0ff 30%, transparent 70%);
+    border-radius: 50%; opacity: 0; mix-blend-mode: screen;
 }
 
-h1 {
-    font-size: 4rem;
-    font-weight: 900;
-    margin-bottom: 10px;
-    color: #ff3333;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    text-shadow: 0 0 20px rgba(255, 51, 51, 0.6);
-}
+/* Gun Visual Variations */
+#gun-body.pistol { width: 40px; left: 10px; background: linear-gradient(to right, #444, #666 20%, #555 80%, #444); border-color: #222; }
+#gun-body.pistol #barrel { width: 14px; background: #222; }
+#gun-body.pistol #muzzle-flash { background: radial-gradient(circle, #fff 0%, #ffeb3b 30%, transparent 70%); }
 
-.controls {
-    margin: 20px 0;
-    font-size: 1.2rem;
-}
+#gun-body.shotgun { width: 80px; left: -10px; background: linear-gradient(to right, #222, #8b4513 20%, #a0522d 80%, #222); border-color: #111; }
+#gun-body.shotgun #barrel { width: 34px; background: #111; border-top: 5px solid #333; }
+#gun-body.shotgun #muzzle-flash { width: 200px; height: 200px; background: radial-gradient(circle, #fff 0%, #ff5722 30%, transparent 70%); }
 
-select {
-    padding: 10px;
-    font-size: 1.1rem;
-    background: #222;
-    color: #fff;
-    border: 2px solid #ff3333;
-    border-radius: 5px;
-    outline: none;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-}
+#gun-body.machinegun { width: 50px; left: 5px; background: linear-gradient(to right, #222, #444 50%, #222); border-color: #333; }
+#gun-body.machinegun #barrel { width: 24px; background: repeating-linear-gradient(90deg, #111, #111 4px, #444 4px, #444 8px); border-top: 2px solid #555; }
+#gun-body.machinegun #muzzle-flash { width: 100px; height: 100px; background: radial-gradient(circle, #fff 0%, #ff9800 40%, transparent 70%); }
 
-select:hover {
-    background: #333;
-}
+/* Firing States */
+body.firing #gun-body { transform: translateY(30px); }
+body.firing #muzzle-flash { animation: flash 0.1s ease-out forwards; }
+@keyframes flash { 0% { transform: translateX(-50%) scale(0.2); opacity: 1; } 50% { transform: translateX(-50%) scale(1.5); opacity: 0.9; } 100% { transform: translateX(-50%) scale(0.5); opacity: 0; } }
 
-p {
-    font-size: 1.2rem;
-    color: #aaaaaa;
-    font-weight: 400;
-}
-
-.visualizer {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 100vw;
-    height: 100vh;
-    pointer-events: none;
-    z-index: 1;
-}
-
-.flash {
-    position: absolute;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,200,0,0.8) 20%, rgba(255,0,0,0) 70%);
-    transform: translate(-50%, -50%) scale(0);
-    opacity: 1;
-    animation: blast 0.3s ease-out forwards;
-}
-
-@keyframes blast {
-    0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
-    50% { transform: translate(-50%, -50%) scale(2); opacity: 0.8; }
-    100% { transform: translate(-50%, -50%) scale(6); opacity: 0; }
-}
-
-#screen-flash {
-    position: fixed;
-    top: 0; left: 0; width: 100vw; height: 100vh;
-    background-color: transparent;
-    pointer-events: none;
-    z-index: 9999;
-    transition: background-color 0.05s ease-out;
-}
-
-.blood-stain {
-    position: absolute;
-    border-radius: 50%;
-    background: radial-gradient(circle, #8a0303 30%, #520000 70%, transparent 100%);
-    opacity: 0.7;
-    pointer-events: none;
-    z-index: 5;
-    animation: blood-fade 10s forwards;
-    filter: blur(2px);
-    transform: translate(-50%, -50%);
-}
-
-@keyframes blood-fade {
-    0% { opacity: 0.8; transform: translate(-50%, -50%) scale(0.5); }
-    5% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.1); }
-    10% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
-    80% { opacity: 0.8; }
-    100% { opacity: 0; }
+/* Responsive Mobile Layout */
+@media (max-width: 768px) {
+    #ui-panel {
+        top: auto; bottom: 0; left: 0; right: 0;
+        width: 100vw; border-radius: 15px 15px 0 0;
+        flex-direction: row; flex-wrap: wrap;
+        max-height: 35vh; overflow-y: auto;
+        padding: 10px; gap: 5px; border-width: 2px 0 0 0;
+        box-sizing: border-box;
+    }
+    .control-group { flex: 1 1 45%; flex-direction: column; align-items: flex-start; gap: 2px; font-size: 14px; }
+    #score-board { font-size: 1.5rem; top: 10px; left: 10px; }
+    /* Downscale the gun pivot so it doesn't block the screen */
+    #gun-pivot { transform-origin: bottom center; transform: translateX(-50%) scale(0.7); bottom: -50px; }
 }
