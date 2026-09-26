@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gun Keyboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="screen-flash"></div>
+    <div class="container">
+        <h1>Gun Keyboard</h1>
+        <div class="controls">
+            <label for="gun-select">Select Weapon:</label>
+            <select id="gun-select">
+                <option value="shotgun">Shotgun</option>
+                <option value="pistol">Pistol</option>
+                <option value="machinegun">Machine Gun</option>
+                <option value="laser">Laser Blaster</option>
+            </select>
+        </div>
+        <p>Press any key to fire...</p>
+        <div class="visualizer" id="visualizer"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
